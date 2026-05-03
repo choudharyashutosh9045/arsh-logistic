@@ -22,7 +22,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
-// ── Generic save / delete ─────────────────────────────────────
 export const saveDoc = async (collName: string, item: any) => {
   await setDoc(doc(db, collName, String(item.id)), item);
 };
@@ -31,7 +30,6 @@ export const deleteDocById = async (collName: string, id: string) => {
   await deleteDoc(doc(db, collName, id));
 };
 
-// ── Real-time listener ────────────────────────────────────────
 export const subscribeToCollection = (
   collName: string,
   callback: (items: any[]) => void
@@ -41,7 +39,6 @@ export const subscribeToCollection = (
   });
 };
 
-// ── Seed collection only if empty (first launch) ─────────────
 export const seedCollection = async (collName: string, items: any[]) => {
   const snapshot = await getDocs(collection(db, collName));
   if (snapshot.empty && items.length > 0) {
