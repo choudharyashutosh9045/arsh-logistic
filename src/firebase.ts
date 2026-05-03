@@ -3,11 +3,11 @@ import {
   getFirestore,
   doc,
   setDoc,
-  getDoc,
-  getDocs,
   deleteDoc,
   collection,
   onSnapshot,
+  writeBatch,
+  getDocs,
 } from "firebase/firestore";
 
 const firebaseConfig = {
@@ -22,23 +22,33 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
-// ── User helpers ──────────────────────────────────────────────
-export const saveUserToDB = async (user: any) => {
-  await setDoc(doc(db, "users", user.id), user);
+// ── Generic save / delete ─────────────────────────────────────
+export const saveDoc = async (collName: string, item: any) => {
+  await setDoc(doc(db, collName, String(item.id)), item);
 };
 
-export const deleteUserFromDB = async (id: string) => {
-  await deleteDoc(doc(db, "users", id));
+export const deleteDocById = async (collName: string, id: string) => {
+  await deleteDoc(doc(db, collName, id));
 };
 
-export const getAllUsersFromDB = async (): Promise<any[]> => {
-  const snapshot = await getDocs(collection(db, "users"));
-  return snapshot.docs.map((d) => d.data());
-};
-
-export const subscribeToUsers = (callback: (users: any[]) => void) => {
-  return onSnapshot(collection(db, "users"), (snapshot) => {
-    const users = snapshot.docs.map((d) => d.data());
-    callback(users);
+// ── Real-time listener ────────────────────────────────────────
+export const subscribeToCollection = (
+  collName: string,
+  callback: (items: any[]) => void
+) => {
+  return onSnapshot(collection(db, collName), (snapshot) => {
+    callback(snapshot.docs.map((d) => d.data()));
   });
+};
+
+// ── Seed collection only if empty (first launch) ─────────────
+export const seedCollection = async (collName: string, items: any[]) => {
+  const snapshot = await getDocs(collection(db, collName));
+  if (snapshot.empty && items.length > 0) {
+    const batch = writeBatch(db);
+    items.forEach((item) => {
+      batch.set(doc(db, collName, String(item.id)), item);
+    });
+    await batch.commit();
+  }
 };
