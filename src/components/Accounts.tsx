@@ -106,7 +106,8 @@ export const Accounts: React.FC<AccountsProps> = ({
     i.freightBillNo.toLowerCase().includes(search.toLowerCase())
   );
 
-  const activeTripsNoInvoice = trips.filter(t => !invoices.some(i => i.tripId === t.id));
+  // Show all trips — ek trip pe multiple invoices bhi ban sakti hain
+  const activeTripsNoInvoice = trips;
 
   // Auto-recompute totals
   const totalAmount = lineItems.reduce((acc, li) => acc + computeRowTotal(li), 0);
@@ -312,35 +313,48 @@ export const Accounts: React.FC<AccountsProps> = ({
     }, 80);
   };
 
-  // Auto-prefill when a trip is selected
+  // Auto-prefill when a trip is selected — user sirf freight amounts fill karega
   const onSelectTrip = (tripId: string) => {
     setSelectedTripId(tripId);
     const t = trips.find(tr => tr.id === tripId);
     if (!t) return;
     setFromLocation(t.origin);
-    // Single line item from trip data
+
+    // Auto-fill customer from trip if no party selected
+    if (!customer && t.customer) {
+      setCustomer(t.customer);
+    }
+
     const today = new Date(t.startDate || Date.now());
-    const fmtDate = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
+    const fmtDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+    const deliveryDate = t.expectedDelivery
+      ? (() => {
+          const d = new Date(t.expectedDelivery);
+          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
+        })()
+      : fmtDate;
+
     setLineItems([
       {
         sNo: 1,
         shipmentDate: fmtDate,
-        lrNo: '',
+        lrNo: t.lrNo || '',
         destination: t.destination,
-        cnNumber: '',
+        cnNumber: t.cnNumber || '',
         truckNo: t.vehicleNo,
-        invoiceNo: '',
-        pkgs: 0,
-        weightKgs: t.cargoWeight * 1000,
-        dateOfArrival: t.expectedDelivery || fmtDate,
-        dateOfDelivery: t.expectedDelivery || fmtDate,
-        truckType: '32FT MX',
-        freightAmt: t.revenue,
+        invoiceNo: t.invoiceNo || '',
+        pkgs: t.pkgs || 0,
+        weightKgs: t.weightKgs || (t.cargoWeight ? t.cargoWeight * 1000 : 0),
+        dateOfArrival: deliveryDate,
+        dateOfDelivery: deliveryDate,
+        truckType: t.truckType || t.cargoType || '',
+        // ── Freight fields: user fills these ──
+        freightAmt: 0,
         toPointChg: 0,
         unloadingChg: 0,
         srcDet: 0,
         dstDet: 0,
-        totalAmt: t.revenue,
+        totalAmt: 0,
       }
     ]);
   };
@@ -621,9 +635,9 @@ export const Accounts: React.FC<AccountsProps> = ({
                       onChange={(e) => onSelectTrip(e.target.value)}
                       className="mt-1 w-full p-2 border border-gray-200 rounded-lg text-xs hover:border-gray-300 focus:border-blue-500 outline-none transition"
                     >
-                      <option value="">Manual entry</option>
+                      <option value="">Manual entry (bina trip ke)</option>
                       {activeTripsNoInvoice.map((t) => (
-                        <option key={t.id} value={t.id}>{t.id} - {t.customer}</option>
+                        <option key={t.id} value={t.id}>{t.id} — {t.customer} ({t.origin} → {t.destination})</option>
                       ))}
                     </select>
                   </div>
