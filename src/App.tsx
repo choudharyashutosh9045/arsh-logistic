@@ -13,7 +13,12 @@ import { Login } from './components/Login';
 import { UserManagement } from './components/UserManagement';
 import { AdminProfile, defaultProfile } from './types/profile';
 import { User, DEFAULT_FOUNDER, Permission } from './types/auth';
-import { saveUserToDB, deleteUserFromDB, subscribeToUsers } from './firebase';
+import {
+  saveDoc,
+  deleteDocById,
+  subscribeToCollection,
+  seedCollection,
+} from './firebase';
 
 import {
   initialTrips,
@@ -21,15 +26,24 @@ import {
   initialDrivers,
   initialVehicles,
   initialInvoices,
-  initialParties
+  initialParties,
 } from './data/mockData';
 import { Trip, Indent, Driver, Vehicle, Invoice, Party } from './types/logistics';
 
-export default function App() {
-  // ───────────────── AUTH STATE ─────────────────
-  const [users, setUsers] = useState<User[]>([DEFAULT_FOUNDER]);
-  const [usersLoaded, setUsersLoaded] = useState(false);
+// ── Loading state tracker ─────────────────────────────────────
+const COLLECTIONS = ['users', 'trips', 'indents', 'drivers', 'vehicles', 'invoices', 'parties'];
 
+export default function App() {
+
+  // ───────────────── LOADING ─────────────────
+  const [loaded, setLoaded] = useState<Record<string, boolean>>({});
+  const allLoaded = COLLECTIONS.every((c) => loaded[c]);
+
+  const markLoaded = (name: string) =>
+    setLoaded((prev) => ({ ...prev, [name]: true }));
+
+  // ───────────────── AUTH STATE ─────────────────
+  const [users, setUsers] = useState<User[]>([]);
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       return JSON.parse(localStorage.getItem('arsh_current_user') || 'null');
@@ -38,25 +52,24 @@ export default function App() {
     }
   });
 
-  // ── Subscribe to Firestore users in real-time ──
+  // Subscribe to users + seed founder on first launch
   useEffect(() => {
-    const unsub = subscribeToUsers((firestoreUsers) => {
-      if (firestoreUsers.length === 0) {
-        // First launch: seed founder into Firestore
-        saveUserToDB(DEFAULT_FOUNDER);
-        setUsers([DEFAULT_FOUNDER]);
+    const unsub = subscribeToCollection('users', (docs) => {
+      const list = docs as User[];
+      if (list.length === 0) {
+        saveDoc('users', DEFAULT_FOUNDER);
       } else {
-        setUsers(firestoreUsers as User[]);
+        setUsers(list);
       }
-      setUsersLoaded(true);
+      markLoaded('users');
     });
     return () => unsub();
   }, []);
 
-  // Keep currentUser in sync with Firestore updates
+  // Keep currentUser in sync with Firestore
   useEffect(() => {
-    if (!currentUser || !usersLoaded) return;
-    const fresh = users.find(u => u.id === currentUser.id);
+    if (!currentUser || users.length === 0) return;
+    const fresh = users.find((u) => u.id === currentUser.id);
     if (!fresh) return;
     if (JSON.stringify(fresh) !== JSON.stringify(currentUser)) {
       if (!fresh.isActive) {
@@ -67,9 +80,8 @@ export default function App() {
         localStorage.setItem('arsh_current_user', JSON.stringify(fresh));
       }
     }
-  }, [users, usersLoaded]);
+  }, [users]);
 
-  // Persist session to localStorage (only for same device auto-login)
   useEffect(() => {
     if (currentUser) {
       localStorage.setItem('arsh_current_user', JSON.stringify(currentUser));
@@ -80,7 +92,9 @@ export default function App() {
 
   const handleLogin = (username: string, password: string): boolean => {
     const user = users.find(
-      u => u.username.toLowerCase() === username.toLowerCase() && u.password === password
+      (u) =>
+        u.username.toLowerCase() === username.toLowerCase() &&
+        u.password === password
     );
     if (!user) return false;
     if (!user.isActive) {
@@ -88,7 +102,7 @@ export default function App() {
       return false;
     }
     const updated: User = { ...user, lastLogin: new Date().toISOString() };
-    saveUserToDB(updated); // Save to Firestore
+    saveDoc('users', updated);
     setCurrentUser(updated);
     return true;
   };
@@ -98,30 +112,116 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
-  const addUser = (u: User) => {
-    saveUserToDB(u); // Save to Firestore — real-time listener updates state
+  const addUser = (u: User) => saveDoc('users', u);
+  const updateUser = (u: User) => saveDoc('users', u);
+  const deleteUser = (id: string) => deleteDocById('users', id);
+
+  // ───────────────── TRIPS ─────────────────
+  const [trips, setTrips] = useState<Trip[]>([]);
+
+  useEffect(() => {
+    seedCollection('trips', initialTrips).then(() => {
+      const unsub = subscribeToCollection('trips', (docs) => {
+        setTrips(docs as Trip[]);
+        markLoaded('trips');
+      });
+      return () => unsub();
+    });
+  }, []);
+
+  const addTrip = (t: Trip) => saveDoc('trips', t);
+  const updateTrip = (t: Trip) => saveDoc('trips', t);
+  const deleteTrip = (id: string) => deleteDocById('trips', id);
+
+  // ───────────────── INDENTS ─────────────────
+  const [indents, setIndents] = useState<Indent[]>([]);
+
+  useEffect(() => {
+    seedCollection('indents', initialIndents).then(() => {
+      const unsub = subscribeToCollection('indents', (docs) => {
+        setIndents(docs as Indent[]);
+        markLoaded('indents');
+      });
+      return () => unsub();
+    });
+  }, []);
+
+  const addIndent = (i: Indent) => saveDoc('indents', i);
+  const updateIndent = (i: Indent) => saveDoc('indents', i);
+
+  // ───────────────── DRIVERS ─────────────────
+  const [drivers, setDrivers] = useState<Driver[]>([]);
+
+  useEffect(() => {
+    seedCollection('drivers', initialDrivers).then(() => {
+      const unsub = subscribeToCollection('drivers', (docs) => {
+        setDrivers(docs as Driver[]);
+        markLoaded('drivers');
+      });
+      return () => unsub();
+    });
+  }, []);
+
+  const addDriver = (d: Driver) => saveDoc('drivers', d);
+  const deleteDriver = (id: string) => deleteDocById('drivers', id);
+
+  // ───────────────── VEHICLES ─────────────────
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+
+  useEffect(() => {
+    seedCollection('vehicles', initialVehicles).then(() => {
+      const unsub = subscribeToCollection('vehicles', (docs) => {
+        setVehicles(docs as Vehicle[]);
+        markLoaded('vehicles');
+      });
+      return () => unsub();
+    });
+  }, []);
+
+  const addVehicle = (v: Vehicle) => saveDoc('vehicles', v);
+  const deleteVehicle = (id: string) => deleteDocById('vehicles', id);
+
+  // ───────────────── INVOICES ─────────────────
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
+
+  useEffect(() => {
+    seedCollection('invoices', initialInvoices).then(() => {
+      const unsub = subscribeToCollection('invoices', (docs) => {
+        setInvoices(docs as Invoice[]);
+        markLoaded('invoices');
+      });
+      return () => unsub();
+    });
+  }, []);
+
+  const addInvoice = (inv: Invoice) => saveDoc('invoices', inv);
+  const approveInvoice = (id: string, updateData?: Partial<Invoice>) => {
+    const inv = invoices.find((i) => i.id === id);
+    if (inv) saveDoc('invoices', { ...inv, ...(updateData || { status: 'Paid' }) });
   };
 
-  const updateUser = (u: User) => {
-    saveUserToDB(u); // Update in Firestore
-  };
+  // ───────────────── PARTIES ─────────────────
+  const [parties, setParties] = useState<Party[]>([]);
 
-  const deleteUser = (id: string) => {
-    deleteUserFromDB(id); // Delete from Firestore
-  };
+  useEffect(() => {
+    seedCollection('parties', initialParties).then(() => {
+      const unsub = subscribeToCollection('parties', (docs) => {
+        setParties(docs as Party[]);
+        markLoaded('parties');
+      });
+      return () => unsub();
+    });
+  }, []);
 
-  // ───────────────── APP STATE ─────────────────
+  const addParty = (p: Party) => saveDoc('parties', p);
+  const updateParty = (p: Party) => saveDoc('parties', p);
+  const deleteParty = (id: string) => deleteDocById('parties', id);
+
+  // ───────────────── PROFILE ─────────────────
   const [activeTab, setActiveTab] = useState<string>('dashboard');
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
 
-  const [trips, setTrips] = useState<Trip[]>(initialTrips);
-  const [indents, setIndents] = useState<Indent[]>(initialIndents);
-  const [drivers, setDrivers] = useState<Driver[]>(initialDrivers);
-  const [vehicles, setVehicles] = useState<Vehicle[]>(initialVehicles);
-  const [invoices, setInvoices] = useState<Invoice[]>(initialInvoices);
-  const [parties, setParties] = useState<Party[]>(initialParties);
-
-  // Admin profile (mirrored from currentUser)
   const profile: AdminProfile = useMemo(() => {
     if (!currentUser) return defaultProfile;
     return {
@@ -144,34 +244,9 @@ export default function App() {
     });
   };
 
-  const [profileModalOpen, setProfileModalOpen] = useState(false);
-
-  const addParty = (newParty: Party) => setParties([newParty, ...parties]);
-  const updateParty = (updatedParty: Party) =>
-    setParties(parties.map(p => (p.id === updatedParty.id ? updatedParty : p)));
-  const deleteParty = (id: string) => setParties(parties.filter(p => p.id !== id));
-
-  const addTrip = (newTrip: Trip) => setTrips([newTrip, ...trips]);
-  const updateTrip = (updatedTrip: Trip) =>
-    setTrips(trips.map(t => (t.id === updatedTrip.id ? updatedTrip : t)));
-  const deleteTrip = (id: string) => setTrips(trips.filter(t => t.id !== id));
-
-  const addIndent = (newIndent: Indent) => setIndents([newIndent, ...indents]);
-  const updateIndent = (updatedIndent: Indent) =>
-    setIndents(indents.map(i => (i.id === updatedIndent.id ? updatedIndent : i)));
-
-  const addDriver = (newDriver: Driver) => setDrivers([newDriver, ...drivers]);
-  const deleteDriver = (id: string) => setDrivers(drivers.filter(d => d.id !== id));
-
-  const addVehicle = (newVehicle: Vehicle) => setVehicles([newVehicle, ...vehicles]);
-  const deleteVehicle = (id: string) => setVehicles(vehicles.filter(v => v.id !== id));
-
-  const addInvoice = (newInvoice: Invoice) => setInvoices([newInvoice, ...invoices]);
-  const approveInvoice = (id: string, updateData?: Partial<Invoice>) =>
-    setInvoices(invoices.map(i => (i.id === id ? { ...i, ...(updateData || { status: 'Paid' as const }) } : i)));
-
   // ───────────────── PERMISSION CHECK ─────────────────
-  const can = (perm: Permission): boolean => !!currentUser?.permissions.includes(perm);
+  const can = (perm: Permission): boolean =>
+    !!currentUser?.permissions.includes(perm);
 
   useEffect(() => {
     if (!currentUser) return;
@@ -181,19 +256,20 @@ export default function App() {
     }
   }, [currentUser, activeTab]);
 
-  // ───────────────── LOADING STATE ─────────────────
-  if (!usersLoaded) {
+  // ───────────────── LOADING SCREEN ─────────────────
+  if (!allLoaded) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-50">
         <div className="text-center">
-          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-slate-500 text-sm">Loading Arsh Logistics...</p>
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-slate-600 font-semibold text-lg">Arsh Logistics</p>
+          <p className="text-slate-400 text-sm mt-1">Loading data from cloud...</p>
         </div>
       </div>
     );
   }
 
-  // ───────────────── RENDER ─────────────────
+  // ───────────────── LOGIN ─────────────────
   if (!currentUser) {
     return <Login onLogin={handleLogin} />;
   }
@@ -212,6 +288,7 @@ export default function App() {
     </div>
   );
 
+  // ───────────────── RENDER ─────────────────
   return (
     <div className="flex flex-col lg:flex-row bg-slate-50 min-h-screen text-slate-800 antialiased font-sans">
       <Sidebar
