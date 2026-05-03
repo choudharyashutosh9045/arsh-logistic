@@ -4,7 +4,6 @@ import { Header } from './components/Header';
 import { Dashboard } from './components/Dashboard';
 import { OrderTracking } from './components/OrderTracking';
 import { TripManagement } from './components/TripManagement';
-import { IndentManagement } from './components/IndentManagement';
 import { FleetMaster } from './components/FleetMaster';
 import { Accounts } from './components/Accounts';
 import { ClientPortal } from './components/ClientPortal';
@@ -22,16 +21,15 @@ import {
 
 import {
   initialTrips,
-  initialIndents,
   initialDrivers,
   initialVehicles,
   initialInvoices,
   initialParties,
 } from './data/mockData';
-import { Trip, Indent, Driver, Vehicle, Invoice, Party } from './types/logistics';
+import { Trip, Driver, Vehicle, Invoice, Party } from './types/logistics';
 
 // ── Loading state tracker ─────────────────────────────────────
-const COLLECTIONS = ['users', 'trips', 'indents', 'drivers', 'vehicles', 'invoices', 'parties'];
+const COLLECTIONS = ['users', 'trips', 'drivers', 'vehicles', 'invoices', 'parties'];
 
 export default function App() {
 
@@ -132,22 +130,6 @@ export default function App() {
   const addTrip = (t: Trip) => saveDoc('trips', t);
   const updateTrip = (t: Trip) => saveDoc('trips', t);
   const deleteTrip = (id: string) => deleteDocById('trips', id);
-
-  // ───────────────── INDENTS ─────────────────
-  const [indents, setIndents] = useState<Indent[]>([]);
-
-  useEffect(() => {
-    seedCollection('indents', initialIndents).then(() => {
-      const unsub = subscribeToCollection('indents', (docs) => {
-        setIndents(docs as Indent[]);
-        markLoaded('indents');
-      });
-      return () => unsub();
-    });
-  }, []);
-
-  const addIndent = (i: Indent) => saveDoc('indents', i);
-  const updateIndent = (i: Indent) => saveDoc('indents', i);
 
   // ───────────────── DRIVERS ─────────────────
   const [drivers, setDrivers] = useState<Driver[]>([]);
@@ -310,7 +292,7 @@ export default function App() {
           {activeTab === 'dashboard' && (can('dashboard') ? (
             <Dashboard
               trips={trips}
-              indents={indents}
+              indents={[]}
               drivers={drivers}
               vehicles={vehicles}
               invoices={invoices}
@@ -331,15 +313,6 @@ export default function App() {
               onAddTrip={addTrip}
               onUpdateTrip={updateTrip}
               onDeleteTrip={deleteTrip}
-            />
-          ) : <NoAccess />)}
-
-          {activeTab === 'indents' && (can('indents') ? (
-            <IndentManagement
-              indents={indents}
-              onAddIndent={addIndent}
-              onUpdateIndent={updateIndent}
-              onAddTrip={addTrip}
             />
           ) : <NoAccess />)}
 
@@ -369,9 +342,9 @@ export default function App() {
 
           {activeTab === 'portal' && (can('portal') ? (
             <ClientPortal
-              indents={indents}
+              indents={[]}
               trips={trips}
-              onAddIndent={addIndent}
+              onAddIndent={() => {}}
               setActiveTab={setActiveTab}
               setSearchTerm={setSearchTerm}
             />
