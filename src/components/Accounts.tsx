@@ -271,11 +271,32 @@ export const Accounts: React.FC<AccountsProps> = ({
         })
         .join('\n');
       w.document.write(`<style>${styles}
-        @page { size: A4 landscape; margin: 6mm; }
-        html, body { margin: 0; padding: 0; background: #fff; height: auto !important; overflow: hidden; }
-        body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        #printable-invoice { width: 100% !important; max-width: 100% !important; page-break-after: avoid; page-break-inside: avoid; }
-        .print-wrap { width: 100%; page-break-after: avoid; }
+        @page { size: A4 landscape; margin: 0; }
+        html { height: fit-content !important; overflow: hidden !important; }
+        body { 
+          margin: 0 !important; 
+          padding: 0 !important; 
+          background: #fff !important; 
+          height: fit-content !important;
+          overflow: hidden !important;
+          -webkit-print-color-adjust: exact !important; 
+          print-color-adjust: exact !important; 
+        }
+        #printable-invoice { 
+          width: 100% !important; 
+          max-width: 100% !important; 
+          page-break-after: avoid !important;
+          page-break-before: avoid !important;
+          page-break-inside: avoid !important;
+          break-after: avoid !important;
+        }
+        .print-wrap { 
+          width: 100%; 
+          height: fit-content !important;
+          overflow: hidden !important;
+          page-break-after: avoid !important;
+          break-after: avoid !important;
+        }
         * { box-sizing: border-box; }
       </style>`);
       w.document.write('</head><body><div class="print-wrap">');
@@ -289,7 +310,7 @@ export const Accounts: React.FC<AccountsProps> = ({
         const imgs = Array.from(w.document.images);
         if (imgs.length === 0) {
           w.print();
-          setTimeout(() => w.close(), 300);
+          setTimeout(() => w.close(), 1000);
           return;
         }
         let pending = imgs.length;
@@ -298,8 +319,8 @@ export const Accounts: React.FC<AccountsProps> = ({
           if (pending <= 0) {
             setTimeout(() => {
               w.print();
-              setTimeout(() => w.close(), 300);
-            }, 200);
+              setTimeout(() => w.close(), 1000);
+            }, 300);
           }
         };
         imgs.forEach(img => {
@@ -312,8 +333,8 @@ export const Accounts: React.FC<AccountsProps> = ({
         });
       };
       // Slight delay to let DOM settle
-      setTimeout(triggerPrint, 250);
-    }, 80);
+      setTimeout(triggerPrint, 400);
+    }, 150);
   };
 
   // Auto-prefill when a trip is selected — user sirf freight amounts fill karega
