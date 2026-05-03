@@ -10,6 +10,7 @@ interface AccountsProps {
   parties: Party[];
   onAddInvoice: (inv: Invoice) => void;
   onApproveInvoice: (id: string, updateData?: Partial<Invoice>) => void;
+  onDeleteInvoice: (id: string) => void;
   onAddParty: (party: Party) => void;
   onUpdateParty: (party: Party) => void;
   onDeleteParty: (id: string) => void;
@@ -49,6 +50,7 @@ export const Accounts: React.FC<AccountsProps> = ({
   parties,
   onAddInvoice,
   onApproveInvoice,
+  onDeleteInvoice,
   onAddParty,
   onUpdateParty,
   onDeleteParty,
@@ -270,10 +272,11 @@ export const Accounts: React.FC<AccountsProps> = ({
         .join('\n');
       w.document.write(`<style>${styles}
         @page { size: A4 landscape; margin: 6mm; }
-        html, body { margin: 0; padding: 0; background: #fff; }
+        html, body { margin: 0; padding: 0; background: #fff; height: auto !important; overflow: hidden; }
         body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        #printable-invoice { width: 100% !important; max-width: 100% !important; }
-        .print-wrap { width: 100%; }
+        #printable-invoice { width: 100% !important; max-width: 100% !important; page-break-after: avoid; page-break-inside: avoid; }
+        .print-wrap { width: 100%; page-break-after: avoid; }
+        * { box-sizing: border-box; }
       </style>`);
       w.document.write('</head><body><div class="print-wrap">');
       w.document.write(node.outerHTML);
@@ -928,6 +931,17 @@ export const Accounts: React.FC<AccountsProps> = ({
                             <CheckCircle2 size={12} /> Settle
                           </button>
                         )}
+                        <button
+                          onClick={() => {
+                            if (confirm(`Delete invoice ${inv.freightBillNo}? This cannot be undone.`)) {
+                              onDeleteInvoice(inv.id);
+                            }
+                          }}
+                          className="p-1.5 bg-gray-50 border border-gray-200 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition"
+                          title="Delete invoice"
+                        >
+                          <Trash2 size={14} />
+                        </button>
                       </div>
                     </td>
                   </tr>
