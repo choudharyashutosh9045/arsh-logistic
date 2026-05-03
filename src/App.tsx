@@ -181,6 +181,7 @@ export default function App() {
     const inv = invoices.find((i) => i.id === id);
     if (inv) saveDoc('invoices', { ...inv, ...(updateData || { status: 'Paid' }) });
   };
+  const deleteInvoice = (id: string) => deleteDocById('invoices', id);
 
   // ───────────────── PARTIES ─────────────────
   const [parties, setParties] = useState<Party[]>([]);
@@ -334,6 +335,7 @@ export default function App() {
               parties={parties}
               onAddInvoice={addInvoice}
               onApproveInvoice={approveInvoice}
+              onDeleteInvoice={deleteInvoice}
               onAddParty={addParty}
               onUpdateParty={updateParty}
               onDeleteParty={deleteParty}
