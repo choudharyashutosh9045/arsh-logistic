@@ -13,6 +13,7 @@ import { Login } from './components/Login';
 import { UserManagement } from './components/UserManagement';
 import { AdminProfile, defaultProfile } from './types/profile';
 import { User, DEFAULT_FOUNDER, Permission } from './types/auth';
+import { saveUserToDB, deleteUserFromDB, subscribeToUsers } from './firebase';
 
 import {
   initialTrips,
@@ -26,63 +27,56 @@ import { Trip, Indent, Driver, Vehicle, Invoice, Party } from './types/logistics
 
 export default function App() {
   // ───────────────── AUTH STATE ─────────────────
-  const [users, setUsers] = useState<User[]>(() => {
-    try {
-      const saved = localStorage.getItem('arsh_users');
-      const parsed: User[] = saved ? JSON.parse(saved) : [];
-      // Ensure founder always exists
-      const hasFounder = parsed.some(u => u.isFounder);
-      return hasFounder ? parsed : [DEFAULT_FOUNDER, ...parsed];
-    } catch {
-      return [DEFAULT_FOUNDER];
-    }
-  });
+  const [users, setUsers] = useState<User[]>([DEFAULT_FOUNDER]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
 
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
-      const saved = localStorage.getItem('arsh_current_user_id');
-      if (!saved) return null;
-      const list = JSON.parse(localStorage.getItem('arsh_users') || '[]') as User[];
-      const found = (list.length ? list : [DEFAULT_FOUNDER]).find(u => u.id === saved);
-      return found && found.isActive ? found : null;
+      return JSON.parse(localStorage.getItem('arsh_current_user') || 'null');
     } catch {
       return null;
     }
   });
 
-  // Persist users + session
+  // ── Subscribe to Firestore users in real-time ──
   useEffect(() => {
-    try {
-      localStorage.setItem('arsh_users', JSON.stringify(users));
-    } catch {
-      // ignore
-    }
-  }, [users]);
-
-  useEffect(() => {
-    try {
-      if (currentUser) {
-        localStorage.setItem('arsh_current_user_id', currentUser.id);
+    const unsub = subscribeToUsers((firestoreUsers) => {
+      if (firestoreUsers.length === 0) {
+        // First launch: seed founder into Firestore
+        saveUserToDB(DEFAULT_FOUNDER);
+        setUsers([DEFAULT_FOUNDER]);
       } else {
-        localStorage.removeItem('arsh_current_user_id');
+        setUsers(firestoreUsers as User[]);
       }
-    } catch {
-      // ignore
-    }
-  }, [currentUser]);
+      setUsersLoaded(true);
+    });
+    return () => unsub();
+  }, []);
 
-  // Keep currentUser in sync when user record changes (e.g. perms updated)
+  // Keep currentUser in sync with Firestore updates
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !usersLoaded) return;
     const fresh = users.find(u => u.id === currentUser.id);
-    if (fresh && JSON.stringify(fresh) !== JSON.stringify(currentUser)) {
+    if (!fresh) return;
+    if (JSON.stringify(fresh) !== JSON.stringify(currentUser)) {
       if (!fresh.isActive) {
         setCurrentUser(null);
+        localStorage.removeItem('arsh_current_user');
       } else {
         setCurrentUser(fresh);
+        localStorage.setItem('arsh_current_user', JSON.stringify(fresh));
       }
     }
-  }, [users, currentUser]);
+  }, [users, usersLoaded]);
+
+  // Persist session to localStorage (only for same device auto-login)
+  useEffect(() => {
+    if (currentUser) {
+      localStorage.setItem('arsh_current_user', JSON.stringify(currentUser));
+    } else {
+      localStorage.removeItem('arsh_current_user');
+    }
+  }, [currentUser]);
 
   const handleLogin = (username: string, password: string): boolean => {
     const user = users.find(
@@ -94,7 +88,7 @@ export default function App() {
       return false;
     }
     const updated: User = { ...user, lastLogin: new Date().toISOString() };
-    setUsers(prev => prev.map(u => (u.id === user.id ? updated : u)));
+    saveUserToDB(updated); // Save to Firestore
     setCurrentUser(updated);
     return true;
   };
@@ -104,9 +98,17 @@ export default function App() {
     setActiveTab('dashboard');
   };
 
-  const addUser = (u: User) => setUsers(prev => [u, ...prev]);
-  const updateUser = (u: User) => setUsers(prev => prev.map(x => (x.id === u.id ? u : x)));
-  const deleteUser = (id: string) => setUsers(prev => prev.filter(u => u.id !== id));
+  const addUser = (u: User) => {
+    saveUserToDB(u); // Save to Firestore — real-time listener updates state
+  };
+
+  const updateUser = (u: User) => {
+    saveUserToDB(u); // Update in Firestore
+  };
+
+  const deleteUser = (id: string) => {
+    deleteUserFromDB(id); // Delete from Firestore
+  };
 
   // ───────────────── APP STATE ─────────────────
   const [activeTab, setActiveTab] = useState<string>('dashboard');
@@ -171,7 +173,6 @@ export default function App() {
   // ───────────────── PERMISSION CHECK ─────────────────
   const can = (perm: Permission): boolean => !!currentUser?.permissions.includes(perm);
 
-  // If current tab not allowed, redirect to first allowed tab
   useEffect(() => {
     if (!currentUser) return;
     if (!can(activeTab as Permission)) {
@@ -179,6 +180,18 @@ export default function App() {
       if (firstAllowed) setActiveTab(firstAllowed);
     }
   }, [currentUser, activeTab]);
+
+  // ───────────────── LOADING STATE ─────────────────
+  if (!usersLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-slate-50">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
+          <p className="text-slate-500 text-sm">Loading Arsh Logistics...</p>
+        </div>
+      </div>
+    );
+  }
 
   // ───────────────── RENDER ─────────────────
   if (!currentUser) {
