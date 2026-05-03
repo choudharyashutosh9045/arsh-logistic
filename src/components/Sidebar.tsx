@@ -1,5 +1,5 @@
 import React from 'react';
-import { Truck, Home, Navigation, ClipboardList, Shield, CreditCard, Layout, Users, LogOut } from 'lucide-react';
+import { Truck, Home, Navigation, Shield, CreditCard, Layout, Users, LogOut } from 'lucide-react';
 import { Permission, User } from '../types/auth';
 
 interface SidebarProps {
@@ -14,7 +14,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeTab, setActiveTab, curre
     { id: 'dashboard', name: 'Control Dashboard', icon: Home },
     { id: 'tracking', name: 'Live Cargo Tracking', icon: Navigation },
     { id: 'trips', name: 'Trip Management', icon: Truck },
-    { id: 'indents', name: 'Indent & Bidding', icon: ClipboardList },
     { id: 'fleet', name: 'Fleet & Operators', icon: Shield },
     { id: 'accounts', name: 'Accounts & Finance', icon: CreditCard },
     { id: 'portal', name: 'Client Desk', icon: Layout },
