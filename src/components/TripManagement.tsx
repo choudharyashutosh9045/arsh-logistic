@@ -31,6 +31,7 @@ export const TripManagement: React.FC<TripManagementProps> = ({
   const [newVehicle, setNewVehicle] = useState('');
   const [newDriver, setNewDriver] = useState('');
   const [newCargoType, setNewCargoType] = useState('');
+  const [manualTruckNo, setManualTruckNo] = useState('');
 
   // Invoice-style shipment fields
   const [shipmentDate, setShipmentDate] = useState('');
@@ -74,6 +75,7 @@ export const TripManagement: React.FC<TripManagementProps> = ({
     setNewVehicle('');
     setNewDriver('');
     setNewCargoType('');
+    setManualTruckNo('');
     setShipmentDate('');
     setLrNo('');
     setCnNumber('');
@@ -87,13 +89,14 @@ export const TripManagement: React.FC<TripManagementProps> = ({
 
   const handleCreateTrip = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newVehicle || !newDriver || !newOrigin || !newDestination) return;
+    const finalVehicleNo = manualTruckNo.trim() ? manualTruckNo.trim().toUpperCase() : newVehicle;
+    if (!finalVehicleNo || !newDriver || !newOrigin || !newDestination) return;
 
     const cargoTons = weightKgs ? weightKgs / 1000 : 0;
 
     const trip: Trip = {
       id: newTripId,
-      vehicleNo: newVehicle,
+      vehicleNo: finalVehicleNo,
       driverName: newDriver,
       origin: newOrigin,
       destination: newDestination,
@@ -250,18 +253,31 @@ export const TripManagement: React.FC<TripManagementProps> = ({
               <div>
                 <label className="text-xs font-bold text-gray-700">Assign Vehicle / Truck No.</label>
                 <select
-                  required
                   value={newVehicle}
-                  onChange={(e) => setNewVehicle(e.target.value)}
+                  onChange={(e) => {
+                    setNewVehicle(e.target.value);
+                    setManualTruckNo(''); // clear manual if dropdown selected
+                  }}
                   className="mt-1 w-full p-2 border border-gray-200 rounded-lg text-xs hover:border-gray-300 focus:border-blue-500 transition outline-none"
                 >
-                  <option value="">Choose Vehicle...</option>
+                  <option value="">Choose from Fleet...</option>
                   {availableVehicles.map((v) => (
                     <option key={v.id} value={v.vehicleNo}>
                       {v.vehicleNo} ({v.type})
                     </option>
                   ))}
                 </select>
+                <p className="text-[10px] text-gray-400 mt-1 text-center font-semibold">— OR —</p>
+                <input
+                  type="text"
+                  value={manualTruckNo}
+                  onChange={(e) => {
+                    setManualTruckNo(e.target.value.toUpperCase());
+                    setNewVehicle(''); // clear dropdown if manual typed
+                  }}
+                  placeholder="Type Truck No. manually e.g. UK07CA1234"
+                  className="mt-1 w-full p-2 border border-gray-200 rounded-lg text-xs hover:border-gray-300 focus:border-blue-500 transition outline-none"
+                />
               </div>
               <div>
                 <label className="text-xs font-bold text-gray-700">Assign Driver</label>
