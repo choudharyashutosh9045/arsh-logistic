@@ -16,16 +16,8 @@ import {
   saveDoc,
   deleteDocById,
   subscribeToCollection,
-  seedCollection,
 } from './firebase';
 
-import {
-  initialTrips,
-  initialDrivers,
-  initialVehicles,
-  initialInvoices,
-  initialParties,
-} from './data/mockData';
 import { Trip, Driver, Vehicle, Invoice, Party } from './types/logistics';
 
 // ── Loading state tracker ─────────────────────────────────────
@@ -118,13 +110,11 @@ export default function App() {
   const [trips, setTrips] = useState<Trip[]>([]);
 
   useEffect(() => {
-    seedCollection('trips', initialTrips).then(() => {
-      const unsub = subscribeToCollection('trips', (docs) => {
-        setTrips(docs as Trip[]);
-        markLoaded('trips');
-      });
-      return () => unsub();
+    const unsub = subscribeToCollection('trips', (docs) => {
+      setTrips(docs as Trip[]);
+      markLoaded('trips');
     });
+    return () => unsub();
   }, []);
 
   const addTrip = (t: Trip) => saveDoc('trips', t);
@@ -135,13 +125,11 @@ export default function App() {
   const [drivers, setDrivers] = useState<Driver[]>([]);
 
   useEffect(() => {
-    seedCollection('drivers', initialDrivers).then(() => {
-      const unsub = subscribeToCollection('drivers', (docs) => {
-        setDrivers(docs as Driver[]);
-        markLoaded('drivers');
-      });
-      return () => unsub();
+    const unsub = subscribeToCollection('drivers', (docs) => {
+      setDrivers(docs as Driver[]);
+      markLoaded('drivers');
     });
+    return () => unsub();
   }, []);
 
   const addDriver = (d: Driver) => saveDoc('drivers', d);
@@ -151,13 +139,11 @@ export default function App() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
 
   useEffect(() => {
-    seedCollection('vehicles', initialVehicles).then(() => {
-      const unsub = subscribeToCollection('vehicles', (docs) => {
-        setVehicles(docs as Vehicle[]);
-        markLoaded('vehicles');
-      });
-      return () => unsub();
+    const unsub = subscribeToCollection('vehicles', (docs) => {
+      setVehicles(docs as Vehicle[]);
+      markLoaded('vehicles');
     });
+    return () => unsub();
   }, []);
 
   const addVehicle = (v: Vehicle) => saveDoc('vehicles', v);
@@ -167,13 +153,11 @@ export default function App() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
 
   useEffect(() => {
-    seedCollection('invoices', initialInvoices).then(() => {
-      const unsub = subscribeToCollection('invoices', (docs) => {
-        setInvoices(docs as Invoice[]);
-        markLoaded('invoices');
-      });
-      return () => unsub();
+    const unsub = subscribeToCollection('invoices', (docs) => {
+      setInvoices(docs as Invoice[]);
+      markLoaded('invoices');
     });
+    return () => unsub();
   }, []);
 
   const addInvoice = (inv: Invoice) => saveDoc('invoices', inv);
@@ -187,13 +171,11 @@ export default function App() {
   const [parties, setParties] = useState<Party[]>([]);
 
   useEffect(() => {
-    seedCollection('parties', initialParties).then(() => {
-      const unsub = subscribeToCollection('parties', (docs) => {
-        setParties(docs as Party[]);
-        markLoaded('parties');
-      });
-      return () => unsub();
+    const unsub = subscribeToCollection('parties', (docs) => {
+      setParties(docs as Party[]);
+      markLoaded('parties');
     });
+    return () => unsub();
   }, []);
 
   const addParty = (p: Party) => saveDoc('parties', p);
