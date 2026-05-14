@@ -3,6 +3,7 @@ import {
   getFirestore,
   doc,
   setDoc,
+  getDoc,
   deleteDoc,
   collection,
   onSnapshot,
@@ -22,6 +23,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 
+// ── Generic save / delete ─────────────────────────────────────
 export const saveDoc = async (collName: string, item: any) => {
   await setDoc(doc(db, collName, String(item.id)), item);
 };
@@ -30,6 +32,7 @@ export const deleteDocById = async (collName: string, id: string) => {
   await deleteDoc(doc(db, collName, id));
 };
 
+// ── Real-time listener ────────────────────────────────────────
 export const subscribeToCollection = (
   collName: string,
   callback: (items: any[]) => void
@@ -39,13 +42,23 @@ export const subscribeToCollection = (
   });
 };
 
+// ── Seed collection only ONCE ever (uses a flag doc in Firestore) ────
 export const seedCollection = async (collName: string, items: any[]) => {
-  const snapshot = await getDocs(collection(db, collName));
-  if (snapshot.empty && items.length > 0) {
+  const flagRef = doc(db, '_seeded', collName);
+  try {
+    const flagSnap = await getDoc(flagRef);
+    if (flagSnap.exists()) return; // Already seeded — never seed again
+  } catch {
+    return;
+  }
+  // First time only — seed the data
+  if (items.length > 0) {
     const batch = writeBatch(db);
     items.forEach((item) => {
       batch.set(doc(db, collName, String(item.id)), item);
     });
+    // Mark as seeded
+    batch.set(flagRef, { seededAt: new Date().toISOString() });
     await batch.commit();
   }
 };
