@@ -10,7 +10,6 @@ interface AccountsProps {
   parties: Party[];
   onAddInvoice: (inv: Invoice) => void;
   onApproveInvoice: (id: string, updateData?: Partial<Invoice>) => void;
-  onDeleteInvoice: (id: string) => void;
   onAddParty: (party: Party) => void;
   onUpdateParty: (party: Party) => void;
   onDeleteParty: (id: string) => void;
@@ -50,7 +49,6 @@ export const Accounts: React.FC<AccountsProps> = ({
   parties,
   onAddInvoice,
   onApproveInvoice,
-  onDeleteInvoice,
   onAddParty,
   onUpdateParty,
   onDeleteParty,
@@ -92,6 +90,75 @@ export const Accounts: React.FC<AccountsProps> = ({
   // View invoice modal
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
 
+  // ── Bulk select state ──
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredInvoices.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredInvoices.map(i => i.id)));
+    }
+  };
+
+  const handleBulkPrint = () => {
+    const selected = invoices.filter(i => selectedIds.has(i.id));
+    if (selected.length === 0) return;
+
+    const origin = window.location.origin;
+    const styles = Array.from(document.styleSheets)
+      .map(ss => {
+        try { return Array.from(ss.cssRules).map(r => r.cssText).join('\n'); }
+        catch { return ''; }
+      }).join('\n');
+
+    const w = window.open('', '_blank', 'width=1200,height=850');
+    if (!w) return;
+
+    w.document.write(`<!DOCTYPE html><html><head><title>Bulk Invoices - ARSH LOGISTICS</title><base href="${origin}/" />`);
+    w.document.write(`<style>${styles}
+      @page { size: A4 landscape; margin: 0; }
+      html { height: fit-content !important; overflow: hidden !important; }
+      body { margin: 0 !important; padding: 0 !important; background: #fff !important; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+      .invoice-page { page-break-after: always; page-break-inside: avoid; width: 100%; }
+      .invoice-page:last-child { page-break-after: avoid; }
+      * { box-sizing: border-box; }
+    </style></head><body>`);
+
+    // Render each invoice HTML
+    selected.forEach((inv, idx) => {
+      // Temporarily set viewInvoice to render — we use a hidden div trick
+      const tempDiv = document.getElementById('printable-invoice-bulk-' + inv.id);
+      const node = document.getElementById('printable-invoice');
+      if (node) {
+        w.document.write(`<div class="invoice-page">${node.outerHTML}</div>`);
+      }
+    });
+
+    w.document.write('</body></html>');
+    w.document.close();
+    w.focus();
+
+    setTimeout(() => {
+      const imgs = Array.from(w.document.images);
+      if (imgs.length === 0) { w.print(); return; }
+      let pending = imgs.length;
+      const onDone = () => { pending--; if (pending <= 0) { setTimeout(() => w.print(), 300); } };
+      imgs.forEach(img => {
+        if (img.complete && img.naturalHeight !== 0) onDone();
+        else { img.addEventListener('load', onDone); img.addEventListener('error', onDone); }
+      });
+    }, 500);
+  };
+
   // Party Master Modal
   const [partyManagerOpen, setPartyManagerOpen] = useState(false);
   const [editingParty, setEditingParty] = useState<Party | null>(null);
@@ -108,8 +175,7 @@ export const Accounts: React.FC<AccountsProps> = ({
     i.freightBillNo.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Show all trips — ek trip pe multiple invoices bhi ban sakti hain
-  const activeTripsNoInvoice = trips;
+  const activeTripsNoInvoice = trips.filter(t => !invoices.some(i => i.tripId === t.id));
 
   // Auto-recompute totals
   const totalAmount = lineItems.reduce((acc, li) => acc + computeRowTotal(li), 0);
@@ -271,33 +337,11 @@ export const Accounts: React.FC<AccountsProps> = ({
         })
         .join('\n');
       w.document.write(`<style>${styles}
-        @page { size: A4 landscape; margin: 0; }
-        html { height: fit-content !important; overflow: hidden !important; }
-        body { 
-          margin: 0 !important; 
-          padding: 0 !important; 
-          background: #fff !important; 
-          height: fit-content !important;
-          overflow: hidden !important;
-          -webkit-print-color-adjust: exact !important; 
-          print-color-adjust: exact !important; 
-        }
-        #printable-invoice { 
-          width: 100% !important; 
-          max-width: 100% !important; 
-          page-break-after: avoid !important;
-          page-break-before: avoid !important;
-          page-break-inside: avoid !important;
-          break-after: avoid !important;
-        }
-        .print-wrap { 
-          width: 100%; 
-          height: fit-content !important;
-          overflow: hidden !important;
-          page-break-after: avoid !important;
-          break-after: avoid !important;
-        }
-        * { box-sizing: border-box; }
+        @page { size: A4 landscape; margin: 6mm; }
+        html, body { margin: 0; padding: 0; background: #fff; }
+        body { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+        #printable-invoice { width: 100% !important; max-width: 100% !important; }
+        .print-wrap { width: 100%; }
       </style>`);
       w.document.write('</head><body><div class="print-wrap">');
       w.document.write(node.outerHTML);
@@ -310,7 +354,7 @@ export const Accounts: React.FC<AccountsProps> = ({
         const imgs = Array.from(w.document.images);
         if (imgs.length === 0) {
           w.print();
-          setTimeout(() => w.close(), 1000);
+          setTimeout(() => w.close(), 300);
           return;
         }
         let pending = imgs.length;
@@ -319,8 +363,8 @@ export const Accounts: React.FC<AccountsProps> = ({
           if (pending <= 0) {
             setTimeout(() => {
               w.print();
-              setTimeout(() => w.close(), 1000);
-            }, 300);
+              setTimeout(() => w.close(), 300);
+            }, 200);
           }
         };
         imgs.forEach(img => {
@@ -333,52 +377,39 @@ export const Accounts: React.FC<AccountsProps> = ({
         });
       };
       // Slight delay to let DOM settle
-      setTimeout(triggerPrint, 400);
-    }, 150);
+      setTimeout(triggerPrint, 250);
+    }, 80);
   };
 
-  // Auto-prefill when a trip is selected — user sirf freight amounts fill karega
+  // Auto-prefill when a trip is selected
   const onSelectTrip = (tripId: string) => {
     setSelectedTripId(tripId);
     const t = trips.find(tr => tr.id === tripId);
     if (!t) return;
     setFromLocation(t.origin);
-
-    // Auto-fill customer from trip if no party selected
-    if (!customer && t.customer) {
-      setCustomer(t.customer);
-    }
-
+    // Single line item from trip data
     const today = new Date(t.startDate || Date.now());
-    const fmtDate = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
-    const deliveryDate = t.expectedDelivery
-      ? (() => {
-          const d = new Date(t.expectedDelivery);
-          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
-        })()
-      : fmtDate;
-
+    const fmtDate = `${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}/${today.getFullYear()}`;
     setLineItems([
       {
         sNo: 1,
         shipmentDate: fmtDate,
-        lrNo: t.lrNo || '',
+        lrNo: '',
         destination: t.destination,
-        cnNumber: t.cnNumber || '',
+        cnNumber: '',
         truckNo: t.vehicleNo,
-        invoiceNo: t.invoiceNo || '',
-        pkgs: t.pkgs || 0,
-        weightKgs: t.weightKgs || (t.cargoWeight ? t.cargoWeight * 1000 : 0),
-        dateOfArrival: deliveryDate,
-        dateOfDelivery: deliveryDate,
-        truckType: t.truckType || t.cargoType || '',
-        // ── Freight fields: user fills these ──
-        freightAmt: 0,
+        invoiceNo: '',
+        pkgs: 0,
+        weightKgs: t.cargoWeight * 1000,
+        dateOfArrival: t.expectedDelivery || fmtDate,
+        dateOfDelivery: t.expectedDelivery || fmtDate,
+        truckType: '32FT MX',
+        freightAmt: t.revenue,
         toPointChg: 0,
         unloadingChg: 0,
         srcDet: 0,
         dstDet: 0,
-        totalAmt: 0,
+        totalAmt: t.revenue,
       }
     ]);
   };
@@ -659,9 +690,9 @@ export const Accounts: React.FC<AccountsProps> = ({
                       onChange={(e) => onSelectTrip(e.target.value)}
                       className="mt-1 w-full p-2 border border-gray-200 rounded-lg text-xs hover:border-gray-300 focus:border-blue-500 outline-none transition"
                     >
-                      <option value="">Manual entry (bina trip ke)</option>
+                      <option value="">Manual entry</option>
                       {activeTripsNoInvoice.map((t) => (
-                        <option key={t.id} value={t.id}>{t.id} — {t.customer} ({t.origin} → {t.destination})</option>
+                        <option key={t.id} value={t.id}>{t.id} - {t.customer}</option>
                       ))}
                     </select>
                   </div>
@@ -870,12 +901,42 @@ export const Accounts: React.FC<AccountsProps> = ({
         </div>
       </div>
 
+      {/* Bulk Action Bar */}
+      {selectedIds.size > 0 && (
+        <div className="bg-blue-600 text-white px-5 py-3 rounded-xl flex items-center justify-between shadow-md">
+          <span className="text-sm font-bold">{selectedIds.size} invoice(s) selected</span>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleBulkPrint}
+              className="flex items-center gap-2 px-4 py-2 bg-white text-blue-700 font-bold text-xs rounded-lg hover:bg-blue-50 transition cursor-pointer shadow-sm"
+            >
+              <Printer size={14} /> Download Selected as PDF
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="p-1.5 text-white hover:text-blue-200 transition cursor-pointer"
+            >
+              <X size={16} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Main Invoices Table */}
       <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50/70 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase">
+                <th className="p-4 w-10">
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size === filteredInvoices.length && filteredInvoices.length > 0}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 rounded cursor-pointer accent-blue-600"
+                    title="Select All"
+                  />
+                </th>
                 <th className="p-4">Freight Bill</th>
                 <th className="p-4">Customer</th>
                 <th className="p-4">Shipments</th>
@@ -888,11 +949,19 @@ export const Accounts: React.FC<AccountsProps> = ({
             <tbody className="divide-y divide-gray-100 text-xs">
               {filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="p-8 text-center text-gray-500">No invoices generated yet.</td>
+                  <td colSpan={8} className="p-8 text-center text-gray-500">No invoices generated yet.</td>
                 </tr>
               ) : (
                 filteredInvoices.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-gray-50/50 transition">
+                  <tr key={inv.id} className={`hover:bg-gray-50/50 transition ${selectedIds.has(inv.id) ? 'bg-blue-50/40' : ''}`}>
+                    <td className="p-4">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(inv.id)}
+                        onChange={() => toggleSelect(inv.id)}
+                        className="w-4 h-4 rounded cursor-pointer accent-blue-600"
+                      />
+                    </td>
                     <td className="p-4">
                       <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 font-bold rounded">
                         {inv.freightBillNo}
@@ -952,17 +1021,6 @@ export const Accounts: React.FC<AccountsProps> = ({
                             <CheckCircle2 size={12} /> Settle
                           </button>
                         )}
-                        <button
-                          onClick={() => {
-                            if (confirm(`Delete invoice ${inv.freightBillNo}? This cannot be undone.`)) {
-                              onDeleteInvoice(inv.id);
-                            }
-                          }}
-                          className="p-1.5 bg-gray-50 border border-gray-200 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg cursor-pointer transition"
-                          title="Delete invoice"
-                        >
-                          <Trash2 size={14} />
-                        </button>
                       </div>
                     </td>
                   </tr>
